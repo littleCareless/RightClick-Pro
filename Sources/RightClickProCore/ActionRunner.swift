@@ -194,6 +194,30 @@ public final class ActionRunner {
 
         case .runCommand, .undoOperation:
             throw ActionRunnerError.unsupportedAction(action.kind)
+
+        case .copyFilePath:
+            // FinderSyncController handles copyFilePath locally via NSPasteboard.
+            // This branch is a fallback; no operation log entry is meaningful.
+            return ActionResult(
+                requestID: request.id,
+                status: .success,
+                message: "已复制 \(request.context.selectedItems.count) 个路径",
+                affectedURLs: request.context.selectedItems
+            )
+
+        case .copyFileName, .copyParentPath, .copyPathAsURL, .copyPathAsShellEscaped,
+             .copyPathAsHomeRelative, .copyAsTree, .clipboardHistory:
+            // All handled locally in FinderSyncController via NSPasteboard.
+            return ActionResult(
+                requestID: request.id,
+                status: .success,
+                message: "已在扩展进程本地处理",
+                affectedURLs: request.context.selectedItems
+            )
+
+        case .batchRename:
+            // Routed to main app via DistributedNotification (like runCommand).
+            throw ActionRunnerError.unsupportedAction(action.kind)
         }
     }
 

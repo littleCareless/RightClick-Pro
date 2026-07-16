@@ -18,6 +18,15 @@ public enum ActionKind: String, Codable, CaseIterable, Equatable, Sendable {
     case openInApp
     case runCommand
     case undoOperation
+    case copyFilePath
+    case copyFileName
+    case copyParentPath
+    case copyPathAsURL
+    case copyPathAsShellEscaped
+    case copyPathAsHomeRelative
+    case copyAsTree
+    case batchRename
+    case clipboardHistory
 }
 
 public enum ActionVisibility: String, Codable, CaseIterable, Hashable, Sendable {
@@ -266,7 +275,13 @@ public struct RightClickProConfig: Codable, Equatable, Sendable {
         [
             DeveloperEntrypoint(id: "developer-terminal", title: "在 Terminal 打开", bundleIdentifier: "com.apple.Terminal"),
             DeveloperEntrypoint(id: "developer-vscode", title: "在 VS Code 打开", bundleIdentifier: "com.microsoft.VSCode"),
-            DeveloperEntrypoint(id: "developer-cursor", title: "在 Cursor 打开", bundleIdentifier: "com.todesktop.230313mzl4w4u92")
+            DeveloperEntrypoint(id: "developer-cursor", title: "在 Cursor 打开", bundleIdentifier: "com.todesktop.230313mzl4w4u92"),
+            // New developer entrypoints (Step 2)
+            DeveloperEntrypoint(id: "developer-iterm2", title: "在 iTerm2 打开", bundleIdentifier: "com.googlecode.iterm2"),
+            DeveloperEntrypoint(id: "developer-zed", title: "在 Zed 打开", bundleIdentifier: "dev.zed.Zed"),
+            DeveloperEntrypoint(id: "developer-xcode", title: "在 Xcode 打开", bundleIdentifier: "com.apple.dt.Xcode"),
+            DeveloperEntrypoint(id: "developer-warp", title: "在 Warp 打开", bundleIdentifier: "dev.warp.Warp-Stable"),
+            DeveloperEntrypoint(id: "developer-ghostty", title: "在 Ghostty 打开", bundleIdentifier: "com.mitchellh.ghostty")
         ]
     }
 
@@ -337,6 +352,139 @@ public struct RightClickProConfig: Codable, Equatable, Sendable {
                 group: .developerEntrypoints,
                 order: 60,
                 payload: ActionPayload(developerEntrypointID: "developer-cursor")
+            ),
+            RightClickProAction(
+                id: "copy-file-path",
+                title: "复制文件路径",
+                kind: .copyFilePath,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: 70
+            ),
+            // New clipboard extensions (Step 2)
+            RightClickProAction(
+                id: "copy-file-name",
+                title: "复制文件名（不含扩展名）",
+                kind: .copyFileName,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: 75
+            ),
+            RightClickProAction(
+                id: "copy-parent-path",
+                title: "复制父目录路径",
+                kind: .copyParentPath,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: 80
+            ),
+            RightClickProAction(
+                id: "copy-path-as-url",
+                title: "复制为 URL",
+                kind: .copyPathAsURL,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: 85
+            ),
+            RightClickProAction(
+                id: "copy-path-as-shell-escaped",
+                title: "复制为 shell 转义",
+                kind: .copyPathAsShellEscaped,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: 90
+            ),
+            RightClickProAction(
+                id: "copy-path-as-home-relative",
+                title: "复制为 Home 相对路径",
+                kind: .copyPathAsHomeRelative,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: 95
+            ),
+            RightClickProAction(
+                id: "copy-as-tree",
+                title: "复制为 tree 文本",
+                kind: .copyAsTree,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: 100
+            ),
+            RightClickProAction(
+                id: "clipboard-history",
+                title: "剪贴板历史",
+                kind: .clipboardHistory,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: 5
+            ),
+            RightClickProAction(
+                id: "batch-rename",
+                title: "批量重命名",
+                kind: .batchRename,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: 105
+            ),
+            // Developer entrypoints (Step 2)
+            RightClickProAction(
+                id: "open-iterm2",
+                title: "在 iTerm2 打开",
+                kind: .openInApp,
+                visibility: [.selection, .container, .toolbar],
+                placement: .submenu,
+                group: .developerEntrypoints,
+                order: 70,
+                payload: ActionPayload(developerEntrypointID: "developer-iterm2")
+            ),
+            RightClickProAction(
+                id: "open-zed",
+                title: "在 Zed 打开",
+                kind: .openInApp,
+                visibility: [.selection, .container, .toolbar],
+                placement: .submenu,
+                group: .developerEntrypoints,
+                order: 80,
+                payload: ActionPayload(developerEntrypointID: "developer-zed")
+            ),
+            RightClickProAction(
+                id: "open-xcode",
+                title: "在 Xcode 打开",
+                kind: .openInApp,
+                visibility: [.selection, .container, .toolbar],
+                placement: .submenu,
+                group: .developerEntrypoints,
+                order: 90,
+                payload: ActionPayload(developerEntrypointID: "developer-xcode")
+            ),
+            RightClickProAction(
+                id: "open-warp",
+                title: "在 Warp 打开",
+                kind: .openInApp,
+                visibility: [.selection, .container, .toolbar],
+                placement: .submenu,
+                group: .developerEntrypoints,
+                order: 100,
+                payload: ActionPayload(developerEntrypointID: "developer-warp")
+            ),
+            RightClickProAction(
+                id: "open-ghostty",
+                title: "在 Ghostty 打开",
+                kind: .openInApp,
+                visibility: [.selection, .container, .toolbar],
+                placement: .submenu,
+                group: .developerEntrypoints,
+                order: 110,
+                payload: ActionPayload(developerEntrypointID: "developer-ghostty")
             )
         ] + defaultCommandTemplates().enumerated().map { index, template in
             RightClickProAction(

@@ -71,6 +71,24 @@ public enum MenuIconResolver {
             return .systemSymbol("terminal")
         case .undoOperation:
             return .systemSymbol("arrow.uturn.backward")
+        case .copyFilePath:
+            return .systemSymbol("doc.on.clipboard.fill")
+        case .copyFileName:
+            return .systemSymbol("doc.text")
+        case .copyParentPath:
+            return .systemSymbol("folder.fill")
+        case .copyPathAsURL:
+            return .systemSymbol("link")
+        case .copyPathAsShellEscaped:
+            return .systemSymbol("chevron.left.forwardslash.chevron.right")
+        case .copyPathAsHomeRelative:
+            return .systemSymbol("house")
+        case .copyAsTree:
+            return .systemSymbol("list.tree")
+        case .batchRename:
+            return .systemSymbol("pencil.and.ellipsis")
+        case .clipboardHistory:
+            return .systemSymbol("clock.arrow.circlepath")
         }
     }
 }

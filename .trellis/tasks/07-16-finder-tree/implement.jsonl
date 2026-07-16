@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/07-16-finder-tree/prd.md", "reason": "13 项 Finder 增强功能的完整需求规格，含 acceptance criteria 和技术方案"}
+{"file": "AGENTS.md", "reason": "编码约定和架构规范"}
+{"file": "docs/architecture.md", "reason": "整体架构文档，子代理需要理解 ActionKind 扩展点、Finder 扩展本地处理 vs XPC 分流模式"}

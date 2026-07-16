@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/07-16-finder-tree/prd.md", "reason": "验收标准对照：13 项 acceptance criteria 全部满足才算完成"}
+{"file": "Tests/RightClickProCoreTests/ActionRunnerTests.swift", "reason": "新增 ActionKind case 需要确保现有测试仍通过，新功能需要补充测试"}
+{"file": "Tests/RightClickProCoreTests/MenuBuilderTests.swift", "reason": "图标解析穷举 switch 需要跟进新 case"}

@@ -12,6 +12,7 @@ final class FinderSyncController: FIFinderSync, @unchecked Sendable {
     private let paths: RightClickProStoragePaths
     private let configProvider: RightClickProConfigProviding
     private let xpcClient = RightClickProActionRunnerXPCClient()
+    private var clipboardHistoryStore: ClipboardHistoryStoring?
     private let cacheRefreshQueue = DispatchQueue(label: "com.iheeleme.rightclickpro.finder-extension.cache")
     private let iconResolutionQueue = DispatchQueue(label: "com.iheeleme.rightclickpro.finder-extension.icons", qos: .background)
     private let cacheRefreshInterval: TimeInterval = 8
@@ -52,6 +53,9 @@ final class FinderSyncController: FIFinderSync, @unchecked Sendable {
             name: Notification.Name(RightClickProConstants.configurationChangedNotificationName),
             object: nil
         )
+        // Initialize clipboard history store (Step 3)
+        let clipboardHistoryURL = paths.baseURL.appendingPathComponent("clipboard-history.json")
+        self.clipboardHistoryStore = FileBackedClipboardHistoryStore(url: clipboardHistoryURL)
         applyFallbackConfiguration()
         installGlobalFinderSyncScope()
         loadConfigurationForStartupInBackground()
@@ -342,6 +346,10 @@ final class FinderSyncController: FIFinderSync, @unchecked Sendable {
     }
 
     private func sendToActionRunner(_ request: ActionRequest) {
+        if handleCopyFilePathLocally(request) {
+            return
+        }
+
         if routeCommandTemplateToMainApp(request) {
             return
         }
@@ -389,6 +397,56 @@ final class FinderSyncController: FIFinderSync, @unchecked Sendable {
             ],
             deliverImmediately: true
         )
+    }
+
+    private func handleCopyActionsLocally(_ request: ActionRequest) -> Bool {
+        guard let action = cachedConfig.actions.first(where: { $0.id == request.actionID }) else {
+            return false
+        }
+
+        let selectedItems = request.context.selectedItems
+        let content: String?
+
+        switch action.kind {
+        case .copyFilePath:
+            content = selectedItems.map(\.path).joined(separator: "\n")
+        case .copyFileName:
+            content = selectedItems.map { $0.deletingPathExtension().lastPathComponent }.joined(separator: "\n")
+        case .copyParentPath:
+            let parents = Set(selectedItems.map { $0.deletingLastPathComponent().path })
+            content = Array(parents).sorted().joined(separator: "\n")
+        case .copyPathAsURL:
+            content = selectedItems.map { PathFormatting.urlEncoded($0) }.joined(separator: "\n")
+        case .copyPathAsShellEscaped:
+            content = selectedItems.map { PathFormatting.shellEscaped($0) }.joined(separator: "\n")
+        case .copyPathAsHomeRelative:
+            content = selectedItems.map { PathFormatting.homeRelative($0) }.joined(separator: "\n")
+        case .copyAsTree:
+            content = TreeFormatter.format(selectedItems)
+        default:
+            return false
+        }
+
+        guard let content = content, !content.isEmpty else {
+            return false
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(content, forType: .string)
+
+        // Record to clipboard history (Step 3)
+        try? clipboardHistoryStore?.append(ClipboardHistoryEntry(content: content, sourceActionID: action.id))
+
+        NSLog("RightClick Pro copied \(selectedItems.count) item(s) using action \(action.id)")
+        return true
+    }
+
+    private func handleCopyFilePathLocally(_ request: ActionRequest) -> Bool {
+        if handleCopyActionsLocally(request) {
+            return true
+        }
+        return false
     }
 
     private func routeCommandTemplateToMainApp(_ request: ActionRequest) -> Bool {

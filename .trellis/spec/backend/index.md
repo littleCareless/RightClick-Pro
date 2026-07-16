@@ -22,6 +22,7 @@ RightClick Pro's "backend" layer is the Swift code that owns durable state, Find
 | [Error Handling](./error-handling.md) | Adding errors, XPC result mapping, validation failures, Finder extension logging |
 | [Quality Guidelines](./quality-guidelines.md) | Running tests, changing packaging, Finder extension behavior, menu presentation contracts |
 | [Logging Guidelines](./logging-guidelines.md) | Operation history, bootstrap records, Finder extension diagnostics, shell script output |
+| [Action Extension Patterns](./action-extension-patterns.md) | Adding new ActionKind cases, local vs XPC handling, configuration migration, Swift 6 regex patterns |
 
 ## Required Checks
 

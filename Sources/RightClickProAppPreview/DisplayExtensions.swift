@@ -60,6 +60,24 @@ extension RightClickProAction {
             return "在当前路径执行命令"
         case .undoOperation:
             return "撤销最近一次文件操作"
+        case .copyFilePath:
+            return "复制所选项目的路径到剪贴板"
+        case .copyFileName:
+            return "复制文件名（不含扩展名）"
+        case .copyParentPath:
+            return "复制父目录路径"
+        case .copyPathAsURL:
+            return "复制为 file:// URL 格式"
+        case .copyPathAsShellEscaped:
+            return "复制为 shell 转义格式"
+        case .copyPathAsHomeRelative:
+            return "复制为 ~ 开头的相对路径"
+        case .copyAsTree:
+            return "复制为 tree 层级文本"
+        case .batchRename:
+            return "按模板批量重命名所选项目"
+        case .clipboardHistory:
+            return "查看并粘贴最近复制的内容"
         }
     }
 
@@ -99,6 +117,24 @@ extension ActionKind {
             return "运行命令"
         case .undoOperation:
             return "撤销操作"
+        case .copyFilePath:
+            return "复制路径"
+        case .copyFileName:
+            return "复制文件名"
+        case .copyParentPath:
+            return "复制父路径"
+        case .copyPathAsURL:
+            return "复制为 URL"
+        case .copyPathAsShellEscaped:
+            return "复制为 Shell"
+        case .copyPathAsHomeRelative:
+            return "复制为相对路径"
+        case .copyAsTree:
+            return "复制为 Tree"
+        case .batchRename:
+            return "批量重命名"
+        case .clipboardHistory:
+            return "剪贴板历史"
         }
     }
 

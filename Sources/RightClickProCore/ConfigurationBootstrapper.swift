@@ -148,6 +148,7 @@ public struct ConfigurationBootstrapper {
         appendMissing(directoryIDs, to: &repaired.shortcutDirectoryIDs)
         appendMissingDirectoryActions(for: directoryIDs, bookmarks: bookmarks, to: &repaired.actions)
         appendMissingCommandActions(for: repaired.commandTemplates, to: &repaired.actions)
+        appendMissingNewActions(to: &repaired.actions)  // Step 4: Add migration for 13 new actions
         repairDefaultDeveloperEntrypointTargets(in: &repaired.developerEntrypoints)
 
         return repaired
@@ -243,6 +244,67 @@ public struct ConfigurationBootstrapper {
             order: order,
             payload: ActionPayload(commandTemplateID: template.id)
         )
+    }
+
+    // Step 4: Migration for 13 new actions (copy-file-name, copy-parent-path, etc.)
+    private func appendMissingNewActions(to actions: inout [RightClickProAction]) {
+        var existingActionIDs = Set(actions.map(\.id))
+        var order = (actions.map(\.order).max() ?? 0) + 10
+
+        let newClipboardActions: [(id: String, title: String, kind: ActionKind, order: Int)] = [
+            ("copy-file-name", "复制文件名（不含扩展名）", .copyFileName, order),
+            ("copy-parent-path", "复制父目录路径", .copyParentPath, order + 5),
+            ("copy-path-as-url", "复制为 URL", .copyPathAsURL, order + 10),
+            ("copy-path-as-shell-escaped", "复制为 shell 转义", .copyPathAsShellEscaped, order + 15),
+            ("copy-path-as-home-relative", "复制为 Home 相对路径", .copyPathAsHomeRelative, order + 20),
+            ("copy-as-tree", "复制为 tree 文本", .copyAsTree, order + 25),
+            ("clipboard-history", "剪贴板历史", .clipboardHistory, 5),  // Special order at top
+            ("batch-rename", "批量重命名", .batchRename, order + 30)
+        ]
+
+        for actionDef in newClipboardActions {
+            if existingActionIDs.insert(actionDef.id).inserted {
+                actions.append(
+                    RightClickProAction(
+                        id: actionDef.id,
+                        title: actionDef.title,
+                        kind: actionDef.kind,
+                        visibility: [.selection],
+                        placement: .submenu,
+                        group: .fileOperations,
+                        order: actionDef.order
+                    )
+                )
+            }
+        }
+
+        // New developer entrypoints
+        let newDeveloperApps: [(id: String, title: String, bundleId: String, entrypointID: String)] = [
+            ("iterm2", "在 iTerm2 打开", "com.googlecode.iterm2", "developer-iterm2"),
+            ("zed", "在 Zed 打开", "dev.zed.Zed", "developer-zed"),
+            ("xcode", "在 Xcode 打开", "com.apple.dt.Xcode", "developer-xcode"),
+            ("warp", "在 Warp 打开", "dev.warp.Warp-Stable", "developer-warp"),
+            ("ghostty", "在 Ghostty 打开", "com.mitchellh.ghostty", "developer-ghostty")
+        ]
+
+        for app in newDeveloperApps {
+            let actionID = "open-\(app.id)"
+            if existingActionIDs.insert(actionID).inserted {
+                actions.append(
+                    RightClickProAction(
+                        id: actionID,
+                        title: app.title,
+                        kind: .openInApp,
+                        visibility: [.selection, .container, .toolbar],
+                        placement: .submenu,
+                        group: .developerEntrypoints,
+                        order: order + 40,
+                        payload: ActionPayload(developerEntrypointID: app.entrypointID)
+                    )
+                )
+                order += 10
+            }
+        }
     }
 
     private func repairDefaultDeveloperEntrypointTargets(in entrypoints: inout [DeveloperEntrypoint]) {
@@ -360,6 +422,123 @@ public struct ConfigurationBootstrapper {
         )
         order += 10
 
+        actions.append(
+            RightClickProAction(
+                id: "copy-file-path",
+                title: "复制文件路径",
+                kind: .copyFilePath,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: order
+            )
+        )
+        order += 10
+
+        // New clipboard extensions (Step 2)
+        actions.append(
+            RightClickProAction(
+                id: "copy-file-name",
+                title: "复制文件名（不含扩展名）",
+                kind: .copyFileName,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: order
+            )
+        )
+        order += 5
+
+        actions.append(
+            RightClickProAction(
+                id: "copy-parent-path",
+                title: "复制父目录路径",
+                kind: .copyParentPath,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: order
+            )
+        )
+        order += 5
+
+        actions.append(
+            RightClickProAction(
+                id: "copy-path-as-url",
+                title: "复制为 URL",
+                kind: .copyPathAsURL,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: order
+            )
+        )
+        order += 5
+
+        actions.append(
+            RightClickProAction(
+                id: "copy-path-as-shell-escaped",
+                title: "复制为 shell 转义",
+                kind: .copyPathAsShellEscaped,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: order
+            )
+        )
+        order += 5
+
+        actions.append(
+            RightClickProAction(
+                id: "copy-path-as-home-relative",
+                title: "复制为 Home 相对路径",
+                kind: .copyPathAsHomeRelative,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: order
+            )
+        )
+        order += 5
+
+        actions.append(
+            RightClickProAction(
+                id: "copy-as-tree",
+                title: "复制为 tree 文本",
+                kind: .copyAsTree,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: order
+            )
+        )
+        order += 5
+
+        actions.append(
+            RightClickProAction(
+                id: "clipboard-history",
+                title: "剪贴板历史",
+                kind: .clipboardHistory,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: 5  // Special order at top per PRD
+            )
+        )
+
+        actions.append(
+            RightClickProAction(
+                id: "batch-rename",
+                title: "批量重命名",
+                kind: .batchRename,
+                visibility: [.selection],
+                placement: .submenu,
+                group: .fileOperations,
+                order: order
+            )
+        )
+        order += 10
+
         for bookmark in bookmarks.bookmarks {
             actions.append(contentsOf: defaultDirectoryActions(for: bookmark, startingAt: order))
             order += 30
@@ -392,6 +571,30 @@ public struct ConfigurationBootstrapper {
                     group: .developerEntrypoints,
                     order: order,
                     payload: ActionPayload(developerEntrypointID: entrypoint.id)
+                )
+            )
+            order += 10
+        }
+
+        // New developer entrypoints (Step 2 - iTerm2, Zed, Xcode, Warp, Ghostty)
+        let newDeveloperApps: [(id: String, title: String, bundleId: String)] = [
+            ("iterm2", "在 iTerm2 打开", "com.googlecode.iterm2"),
+            ("zed", "在 Zed 打开", "dev.zed.Zed"),
+            ("xcode", "在 Xcode 打开", "com.apple.dt.Xcode"),
+            ("warp", "在 Warp 打开", "dev.warp.Warp-Stable"),
+            ("ghostty", "在 Ghostty 打开", "com.mitchellh.ghostty")
+        ]
+        for app in newDeveloperApps {
+            actions.append(
+                RightClickProAction(
+                    id: "open-\(app.id)",
+                    title: app.title,
+                    kind: .openInApp,
+                    visibility: [.selection, .container, .toolbar],
+                    placement: .submenu,
+                    group: .developerEntrypoints,
+                    order: order,
+                    payload: ActionPayload(developerEntrypointID: "developer-\(app.id)")
                 )
             )
             order += 10
