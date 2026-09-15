@@ -16,7 +16,16 @@ RIGHTCLICKPRO_PACKAGE_DMG="${RIGHTCLICKPRO_PACKAGE_DMG:-0}"
 RIGHTCLICKPRO_REGISTER_FINDER_EXTENSION="${RIGHTCLICKPRO_REGISTER_FINDER_EXTENSION:-0}"
 RIGHTCLICKPRO_MACOS_DEPLOYMENT_TARGET="${RIGHTCLICKPRO_MACOS_DEPLOYMENT_TARGET:-${MACOSX_DEPLOYMENT_TARGET:-14.0}}"
 export MACOSX_DEPLOYMENT_TARGET="$RIGHTCLICKPRO_MACOS_DEPLOYMENT_TARGET"
+RIGHTCLICKPRO_UNIVERSAL="${RIGHTCLICKPRO_UNIVERSAL:-0}"
 PACKAGED_FINDER_EXTENSION_PATH=""
+
+# Architecture configuration
+if [[ "$RIGHTCLICKPRO_UNIVERSAL" == "1" ]]; then
+  ARCHITECTURES=("arm64" "x86_64")
+  ARTIFACT_SUFFIX="universal"
+else
+  ARCHITECTURES=("$(uname -m)")
+fi
 
 case "$CONFIGURATION" in
   release|debug) ;;
@@ -46,6 +55,14 @@ if [[ ! "$RIGHTCLICKPRO_MACOS_DEPLOYMENT_TARGET" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; 
   echo "Unsupported RIGHTCLICKPRO_MACOS_DEPLOYMENT_TARGET value: $RIGHTCLICKPRO_MACOS_DEPLOYMENT_TARGET" >&2
   exit 64
 fi
+
+case "$RIGHTCLICKPRO_UNIVERSAL" in
+  0|1) ;;
+  *)
+    echo "Unsupported RIGHTCLICKPRO_UNIVERSAL value: $RIGHTCLICKPRO_UNIVERSAL. Use 1 to build a Universal Binary." >&2
+    exit 64
+    ;;
+esac
 
 swift_target_triple() {
   local arch
@@ -342,17 +359,46 @@ build_rightclickpro_core_dylib() {
     swift_flags=(-Onone -g)
   fi
 
-  swiftc \
-    "${swift_flags[@]}" \
-    -target "$target_triple" \
-    -emit-library \
-    -emit-module \
-    -module-name RightClickProCore \
-    -emit-module-path "$build_dir/RightClickProCore.swiftmodule" \
-    -Xlinker -install_name \
-    -Xlinker "@rpath/libRightClickProCore.dylib" \
-    Sources/RightClickProCore/*.swift \
-    -o "$build_dir/libRightClickProCore.dylib"
+  if [[ "$RIGHTCLICKPRO_UNIVERSAL" == "1" ]]; then
+    # Build for each architecture separately
+    local arch_outputs=()
+    for arch in "${ARCHITECTURES[@]}"; do
+      local arch_build_dir="$build_dir/$arch"
+      mkdir -p "$arch_build_dir"
+
+      swiftc \
+        "${swift_flags[@]}" \
+        -target "${arch}-apple-macosx${RIGHTCLICKPRO_MACOS_DEPLOYMENT_TARGET}" \
+        -emit-library \
+        -emit-module \
+        -module-name RightClickProCore \
+        -emit-module-path "$arch_build_dir/RightClickProCore.swiftmodule" \
+        -Xlinker -install_name \
+        -Xlinker "@rpath/libRightClickProCore.dylib" \
+        Sources/RightClickProCore/*.swift \
+        -o "$arch_build_dir/libRightClickProCore.dylib"
+
+      arch_outputs+=("$arch_build_dir/libRightClickProCore.dylib")
+    done
+
+    # Merge into universal binary
+    lipo -create "${arch_outputs[@]}" -output "$build_dir/libRightClickProCore.dylib"
+
+    # Copy module from first arch (they should be compatible)
+    cp "${build_dir}/${ARCHITECTURES[0]}/RightClickProCore.swiftmodule" "$build_dir/"
+  else
+    swiftc \
+      "${swift_flags[@]}" \
+      -target "$target_triple" \
+      -emit-library \
+      -emit-module \
+      -module-name RightClickProCore \
+      -emit-module-path "$build_dir/RightClickProCore.swiftmodule" \
+      -Xlinker -install_name \
+      -Xlinker "@rpath/libRightClickProCore.dylib" \
+      Sources/RightClickProCore/*.swift \
+      -o "$build_dir/libRightClickProCore.dylib"
+  fi
 }
 
 build_finder_extension_bundle() {
@@ -374,22 +420,52 @@ build_finder_extension_bundle() {
     swift_flags=(-Onone -g)
   fi
 
-  swiftc \
-    "${swift_flags[@]}" \
-    -target "$target_triple" \
-    -parse-as-library \
-    -module-name RightClickProFinderExtension \
-    -I "$core_build_dir" \
-    -L "$core_build_dir" \
-    -lRightClickProCore \
-    -framework AppKit \
-    -framework FinderSync \
-    -Xlinker -e \
-    -Xlinker _NSExtensionMain \
-    -Xlinker -rpath \
-    -Xlinker "@executable_path/../Frameworks" \
-    Sources/RightClickProFinderExtension/FinderSyncController.swift \
-    -o "$executable_path"
+  if [[ "$RIGHTCLICKPRO_UNIVERSAL" == "1" ]]; then
+    local arch_outputs=()
+    for arch in "${ARCHITECTURES[@]}"; do
+      local arch_executable="$executable_path.$arch"
+
+      swiftc \
+        "${swift_flags[@]}" \
+        -target "${arch}-apple-macosx${RIGHTCLICKPRO_MACOS_DEPLOYMENT_TARGET}" \
+        -parse-as-library \
+        -module-name RightClickProFinderExtension \
+        -I "$core_build_dir/$arch" \
+        -L "$core_build_dir/$arch" \
+        -lRightClickProCore \
+        -framework AppKit \
+        -framework FinderSync \
+        -Xlinker -e \
+        -Xlinker _NSExtensionMain \
+        -Xlinker -rpath \
+        -Xlinker "@executable_path/../Frameworks" \
+        Sources/RightClickProFinderExtension/FinderSyncController.swift \
+        -o "$arch_executable"
+
+      arch_outputs+=("$arch_executable")
+    done
+
+    # Merge into universal binary
+    lipo -create "${arch_outputs[@]}" -output "$executable_path"
+    rm -f "${arch_outputs[@]}"
+  else
+    swiftc \
+      "${swift_flags[@]}" \
+      -target "$target_triple" \
+      -parse-as-library \
+      -module-name RightClickProFinderExtension \
+      -I "$core_build_dir" \
+      -L "$core_build_dir" \
+      -lRightClickProCore \
+      -framework AppKit \
+      -framework FinderSync \
+      -Xlinker -e \
+      -Xlinker _NSExtensionMain \
+      -Xlinker -rpath \
+      -Xlinker "@executable_path/../Frameworks" \
+      Sources/RightClickProFinderExtension/FinderSyncController.swift \
+      -o "$executable_path"
+  fi
 
   cp "$core_build_dir/libRightClickProCore.dylib" "$appex_path/Contents/Frameworks/"
   write_finder_extension_info_plist "$appex_path/Contents/Info.plist"
@@ -399,6 +475,15 @@ build_preview_executables() {
   local core_build_dir="$1"
   local app_executable_path="$2"
   local xpc_executable_path="$3"
+
+  # Universal Binary is not compatible with SwiftPM's default build behavior
+  # (SwiftPM builds for the host architecture only). Force direct swiftc compilation.
+  if [[ "$RIGHTCLICKPRO_UNIVERSAL" == "1" ]]; then
+    echo "Building Universal Binary with direct swiftc (SwiftPM does not support multi-arch builds)." >&2
+    build_preview_executables_direct "$core_build_dir" "$app_executable_path" "$xpc_executable_path"
+    return
+  fi
+
   local bin_path
   local swiftpm_log="$DIST_DIR/swiftpm-build.log"
   local target_triple
@@ -413,6 +498,15 @@ build_preview_executables() {
   fi
 
   echo "SwiftPM build failed; falling back to direct swiftc preview compilation. See $swiftpm_log." >&2
+  build_preview_executables_direct "$core_build_dir" "$app_executable_path" "$xpc_executable_path"
+}
+
+build_preview_executables_direct() {
+  local core_build_dir="$1"
+  local app_executable_path="$2"
+  local xpc_executable_path="$3"
+  local target_triple
+  target_triple="$(swift_target_triple)"
 
   local swift_flags=()
   if [[ "$CONFIGURATION" == "release" ]]; then
@@ -421,33 +515,83 @@ build_preview_executables() {
     swift_flags=(-Onone -g)
   fi
 
-  swiftc \
-    "${swift_flags[@]}" \
-    -target "$target_triple" \
-    -parse-as-library \
-    -module-name RightClickPro \
-    -I "$core_build_dir" \
-    -L "$core_build_dir" \
-    -lRightClickProCore \
-    -framework AppKit \
-    -framework ServiceManagement \
-    -framework SwiftUI \
-    -Xlinker -rpath \
-    -Xlinker "@executable_path/../Frameworks" \
-    Sources/RightClickProAppPreview/*.swift \
-    -o "$app_executable_path"
+  if [[ "$RIGHTCLICKPRO_UNIVERSAL" == "1" ]]; then
+    # Build app executable for each architecture
+    local app_arch_outputs=()
+    local xpc_arch_outputs=()
 
-  swiftc \
-    "${swift_flags[@]}" \
-    -target "$target_triple" \
-    -module-name RightClickProActionRunner \
-    -I "$core_build_dir" \
-    -L "$core_build_dir" \
-    -lRightClickProCore \
-    -Xlinker -rpath \
-    -Xlinker "@executable_path/../Frameworks" \
-    Sources/RightClickProActionRunnerService/main.swift \
-    -o "$xpc_executable_path"
+    for arch in "${ARCHITECTURES[@]}"; do
+      local app_arch_executable="$app_executable_path.$arch"
+      local xpc_arch_executable="$xpc_executable_path.$arch"
+
+      # Build app executable
+      swiftc \
+        "${swift_flags[@]}" \
+        -target "${arch}-apple-macosx${RIGHTCLICKPRO_MACOS_DEPLOYMENT_TARGET}" \
+        -parse-as-library \
+        -module-name RightClickPro \
+        -I "$core_build_dir/$arch" \
+        -L "$core_build_dir/$arch" \
+        -lRightClickProCore \
+        -framework AppKit \
+        -framework ServiceManagement \
+        -framework SwiftUI \
+        -Xlinker -rpath \
+        -Xlinker "@executable_path/../Frameworks" \
+        Sources/RightClickProAppPreview/*.swift \
+        -o "$app_arch_executable"
+
+      app_arch_outputs+=("$app_arch_executable")
+
+      # Build XPC executable
+      swiftc \
+        "${swift_flags[@]}" \
+        -target "${arch}-apple-macosx${RIGHTCLICKPRO_MACOS_DEPLOYMENT_TARGET}" \
+        -module-name RightClickProActionRunner \
+        -I "$core_build_dir/$arch" \
+        -L "$core_build_dir/$arch" \
+        -lRightClickProCore \
+        -Xlinker -rpath \
+        -Xlinker "@executable_path/../Frameworks" \
+        Sources/RightClickProActionRunnerService/main.swift \
+        -o "$xpc_arch_executable"
+
+      xpc_arch_outputs+=("$xpc_arch_executable")
+    done
+
+    # Merge into universal binaries
+    lipo -create "${app_arch_outputs[@]}" -output "$app_executable_path"
+    lipo -create "${xpc_arch_outputs[@]}" -output "$xpc_executable_path"
+    rm -f "${app_arch_outputs[@]}" "${xpc_arch_outputs[@]}"
+  else
+    swiftc \
+      "${swift_flags[@]}" \
+      -target "$target_triple" \
+      -parse-as-library \
+      -module-name RightClickPro \
+      -I "$core_build_dir" \
+      -L "$core_build_dir" \
+      -lRightClickProCore \
+      -framework AppKit \
+      -framework ServiceManagement \
+      -framework SwiftUI \
+      -Xlinker -rpath \
+      -Xlinker "@executable_path/../Frameworks" \
+      Sources/RightClickProAppPreview/*.swift \
+      -o "$app_executable_path"
+
+    swiftc \
+      "${swift_flags[@]}" \
+      -target "$target_triple" \
+      -module-name RightClickProActionRunner \
+      -I "$core_build_dir" \
+      -L "$core_build_dir" \
+      -lRightClickProCore \
+      -Xlinker -rpath \
+      -Xlinker "@executable_path/../Frameworks" \
+      Sources/RightClickProActionRunnerService/main.swift \
+      -o "$xpc_executable_path"
+  fi
 }
 
 codesign_if_available() {
@@ -575,31 +719,33 @@ validate_preview_bundle() {
 }
 
 write_dmg_readme() {
-  local readme_path="$1"
-  cat > "$readme_path" <<README
+  local readme_path=”$1”
+  cat > “$readme_path” <<README
 ${APP_NAME} 内测构建
 
 安装方式
-1. 将 "${APP_NAME}.app" 拖到 Applications。
-2. 打开“终端”，执行下面的命令清理隔离属性：
-   xattr -cr "/Applications/${APP_NAME}.app"
+1. 将 “${APP_NAME}.app” 拖到 Applications。
+2. 打开”终端”，执行下面的命令清理隔离属性（必须）：
+   xattr -cr “/Applications/${APP_NAME}.app”
 3. 从 Applications 打开 ${APP_NAME}。
+4. 首次打开时，App 会自动注册 Finder Extension。
+5. 如果系统提示”找不到 Finder Extension”，请确保已执行第 2 步的 xattr 命令。
 
 安全提示
 这个构建用于自用/内测分发，未使用 Developer ID 签名，也未公证。
 下载或拷贝后的 App 可能带有 com.apple.quarantine 隔离属性。
 如果不先执行 xattr -cr，macOS 可能阻止打开或影响 Finder Extension 加载。
 如仍被系统拦截，可以到 系统设置 > 隐私与安全性 中允许打开；
-也可以在 Finder 中右键 "/Applications/${APP_NAME}.app"，选择“打开”，再确认打开。
+也可以在 Finder 中右键 “/Applications/${APP_NAME}.app”，选择”打开”，再确认打开。
 
 启用 Finder Extension
 1. 打开 ${APP_NAME}，App 会自动注册并尝试启用 Finder Extension。
    首次完成注入时，Finder 可能会被自动重新加载一次，以便右键菜单更快出现。
 2. 如果系统要求手动确认，请前往 系统设置 > 隐私与安全性 > 扩展 > Finder 扩展。
-3. 启用 "${APP_NAME} Finder Extension"。
+3. 启用 “${APP_NAME} Finder Extension”。
 
 如果 Finder 右键菜单没有出现
-1. 在 ${APP_NAME} 概览页点击“重启 Finder”，App 会重新注册扩展并重启 Finder。
+1. 在 ${APP_NAME} 概览页点击”重启 Finder”，App 会重新注册扩展并重启 Finder。
 2. 确认 Finder 扩展已启用。
 3. 重新打开 Finder 右键菜单。
 4. 如仍未出现，可在终端手动运行：
@@ -722,6 +868,11 @@ NOTES
   write_xpc_entitlements_plist "$xpc_entitlements_path"
   codesign_if_available "$app_entitlements_path" "$finder_entitlements_path" "$xpc_entitlements_path" "$app_path" "$xpc_path" "$appex_path" "$appex_xpc_path"
   validate_preview_bundle "$app_path" "$xpc_path" "$appex_path" "$appex_xpc_path"
+
+  # Clear quarantine attributes to prevent Finder Extension loading issues on target machines
+  if command -v xattr >/dev/null 2>&1; then
+    xattr -cr "$app_path" 2>/dev/null || true
+  fi
 
   mkdir -p "$DIST_DIR"
   ditto -c -k --keepParent "$app_path" "$DIST_DIR/$APP_NAME-$(version_name)-$ARTIFACT_SUFFIX-preview.zip"
