@@ -316,6 +316,12 @@ extension OperationKind {
             return "开发者入口"
         case .runCommand:
             return "运行命令"
+        case .copyPath:
+            return "复制路径"
+        case .batchRename:
+            return "批量重命名"
+        case .clipboardHistory:
+            return "剪切板历史"
         case .unsupported:
             return "未支持"
         }

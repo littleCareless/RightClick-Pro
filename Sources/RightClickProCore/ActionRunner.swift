@@ -115,6 +115,10 @@ public final class ActionRunner {
             return [directoryID]
         case .cut, .paste, .createFile, .openInApp, .runCommand, .undoOperation:
             return []
+        case .copyFilePath, .copyFileName, .copyParentPath, .copyPathAsURL,
+             .copyPathAsShellEscaped, .copyPathAsHomeRelative, .copyAsTree,
+             .batchRename, .clipboardHistory:
+            return []
         }
     }
 

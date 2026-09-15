@@ -9,6 +9,9 @@ public enum OperationKind: String, Codable, Equatable, Sendable {
     case createFile
     case openInApp
     case runCommand
+    case copyPath
+    case batchRename
+    case clipboardHistory
     case unsupported
 
     public init(actionKind: ActionKind) {
@@ -27,10 +30,15 @@ public enum OperationKind: String, Codable, Equatable, Sendable {
             self = .createFile
         case .openInApp:
             self = .openInApp
-        case .runCommand:
+        case .runCommand, .undoOperation:
             self = .runCommand
-        case .undoOperation:
-            self = .unsupported
+        case .copyFilePath, .copyFileName, .copyParentPath, .copyPathAsURL,
+             .copyPathAsShellEscaped, .copyPathAsHomeRelative, .copyAsTree:
+            self = .copyPath
+        case .batchRename:
+            self = .batchRename
+        case .clipboardHistory:
+            self = .clipboardHistory
         }
     }
 }
