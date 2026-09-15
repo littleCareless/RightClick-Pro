@@ -99,7 +99,13 @@ final class FinderSyncController: FIFinderSync, @unchecked Sendable {
         let menu = NSMenu(title: "快捷操作")
 
         for item in presentation.rootItems {
-            menu.addItem(nsMenuItem(for: item, context: context))
+            if let action = config.actions.first(where: { $0.id == item.actionID }),
+               action.kind == .clipboardHistory {
+                let historyItem = buildClipboardHistoryMenuItem(action: action)
+                menu.addItem(historyItem)
+            } else {
+                menu.addItem(nsMenuItem(for: item, context: context))
+            }
         }
 
         for group in MenuGroup.allCases {
@@ -109,7 +115,15 @@ final class FinderSyncController: FIFinderSync, @unchecked Sendable {
             let groupItem = NSMenuItem(title: title(for: group), action: nil, keyEquivalent: "")
             groupItem.image = cachedMenuImage(for: icon(for: group))
             let submenu = NSMenu(title: title(for: group))
-            items.forEach { submenu.addItem(nsMenuItem(for: $0, context: context)) }
+            for item in items {
+                if let action = config.actions.first(where: { $0.id == item.actionID }),
+                   action.kind == .clipboardHistory {
+                    let historyItem = buildClipboardHistoryMenuItem(action: action)
+                    submenu.addItem(historyItem)
+                } else {
+                    submenu.addItem(nsMenuItem(for: item, context: context))
+                }
+            }
             groupItem.submenu = submenu
             menu.addItem(groupItem)
         }
@@ -354,6 +368,12 @@ final class FinderSyncController: FIFinderSync, @unchecked Sendable {
             return
         }
 
+        if routeBatchRenameToMainApp(request) {
+            return
+        }
+
+        // clipboardHistory 不需要单独处理，菜单已经动态生成
+
         let actionKind = cachedConfig.actions.first(where: { $0.id == request.actionID })?.kind
         xpcClient.perform(request) { result in
             switch result {
@@ -484,6 +504,89 @@ final class FinderSyncController: FIFinderSync, @unchecked Sendable {
             if let error {
                 NSLog("RightClick Pro failed to open main app: \(error.localizedDescription)")
             }
+        }
+    }
+
+    private func routeBatchRenameToMainApp(_ request: ActionRequest) -> Bool {
+        guard let action = cachedConfig.actions.first(where: { $0.id == request.actionID }),
+              action.kind == .batchRename else {
+            return false
+        }
+
+        let urls = request.context.selectedItems
+        guard !urls.isEmpty else {
+            NSLog("RightClick Pro batch rename action has no selected items")
+            return true
+        }
+
+        let paths = urls.map(\.path)
+        let userInfo: [String: Any] = ["paths": paths]
+        DistributedNotificationCenter.default().post(
+            name: Notification.Name(RightClickProConstants.batchRenameNotificationName),
+            object: nil,
+            userInfo: userInfo
+        )
+        launchMainAppForCommandWindow()
+        NSLog("RightClick Pro sent batch rename request to main app with \(urls.count) file(s)")
+        return true
+    }
+
+    private func buildClipboardHistoryMenuItem(action: RightClickProAction) -> NSMenuItem {
+        let historyItem = NSMenuItem(title: "剪贴板历史", action: nil, keyEquivalent: "")
+        historyItem.image = cachedMenuImage(for: .systemSymbol("clock.arrow.circlepath"))
+
+        let submenu = NSMenu(title: "剪贴板历史")
+
+        do {
+            let entries = try clipboardHistoryStore?.load() ?? []
+            if entries.isEmpty {
+                let emptyItem = NSMenuItem(title: "暂无历史记录", action: nil, keyEquivalent: "")
+                emptyItem.isEnabled = false
+                submenu.addItem(emptyItem)
+            } else {
+                for entry in entries.prefix(20) {
+                    let displayText = entry.content.count > 50 ? String(entry.content.prefix(50)) + "..." : entry.content
+                    let menuItem = NSMenuItem(title: displayText, action: #selector(restoreClipboardEntry(_:)), keyEquivalent: "")
+                    menuItem.target = self
+                    menuItem.representedObject = entry.content
+                    submenu.addItem(menuItem)
+                }
+
+                submenu.addItem(NSMenuItem.separator())
+
+                let clearItem = NSMenuItem(title: "清空历史", action: #selector(clearClipboardHistory(_:)), keyEquivalent: "")
+                clearItem.target = self
+                submenu.addItem(clearItem)
+            }
+        } catch {
+            NSLog("RightClick Pro failed to load clipboard history: \(error.localizedDescription)")
+            let errorItem = NSMenuItem(title: "加载历史失败", action: nil, keyEquivalent: "")
+            errorItem.isEnabled = false
+            submenu.addItem(errorItem)
+        }
+
+        historyItem.submenu = submenu
+        return historyItem
+    }
+
+    @objc private func restoreClipboardEntry(_ sender: NSMenuItem) {
+        guard let content = sender.representedObject as? String else {
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(content, forType: .string)
+
+        NSLog("RightClick Pro restored clipboard entry")
+    }
+
+    @objc private func clearClipboardHistory(_ sender: NSMenuItem) {
+        do {
+            try clipboardHistoryStore?.clear()
+            NSLog("RightClick Pro cleared clipboard history")
+        } catch {
+            NSLog("RightClick Pro failed to clear clipboard history: \(error.localizedDescription)")
         }
     }
 

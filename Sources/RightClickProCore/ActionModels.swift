@@ -511,6 +511,7 @@ public extension RightClickProConstants {
     static let actionFailureActionIDKey = "actionID"
     static let actionFailureActionKindKey = "actionKind"
     static let actionFailureMessageKey = "message"
+    static let batchRenameNotificationName = "com.iheeleme.rightclickpro.batch-rename"
     static let mainAppBundleIdentifier = "com.iheeleme.rightclickpro"
     static let commandEnvironmentKeychainService = "com.iheeleme.rightclickpro.command-env"
 }

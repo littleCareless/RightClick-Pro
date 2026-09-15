@@ -89,6 +89,7 @@ struct RightClickProAppPreview: App {
 final class RightClickProAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         applyApplicationMenuTitle()
+        listenForBatchRenameNotifications()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -101,5 +102,30 @@ final class RightClickProAppDelegate: NSObject, NSApplicationDelegate {
 
     private func applyApplicationMenuTitle() {
         NSApplication.shared.mainMenu?.items.first?.title = AppMetadata.displayName
+    }
+
+    private func listenForBatchRenameNotifications() {
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name(RightClickProConstants.batchRenameNotificationName),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let userInfo = notification.userInfo,
+                  let paths = userInfo["paths"] as? [String] else {
+                return
+            }
+            Task { @MainActor [weak self] in
+                self?.handleBatchRenameWithPaths(paths)
+            }
+        }
+    }
+
+    private func handleBatchRenameWithPaths(_ paths: [String]) {
+        let urls = paths.map { URL(fileURLWithPath: $0) }
+        NSLog("RightClick Pro received batch rename request for \(urls.count) file(s)")
+
+        BatchRenameWindowCoordinator.shared.open(files: urls) {
+            NSLog("RightClick Pro batch rename window closed")
+        }
     }
 }
